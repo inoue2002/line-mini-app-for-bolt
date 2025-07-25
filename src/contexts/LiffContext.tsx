@@ -92,6 +92,7 @@ export function LiffProvider({ children }: { children: ReactNode }) {
         console.log('LIFF初期化完了:', liff);
         setLiffObject(liff);
 
+        // 開発環境でモック使用時の処理
         if (import.meta.env.DEV && useMock) {
           const redirectUri = window.location.href;
 
@@ -122,6 +123,14 @@ export function LiffProvider({ children }: { children: ReactNode }) {
 
           const loggedIn = liff.isLoggedIn();
           setIsLoggedIn(loggedIn);
+
+          // 本番環境でログインしていない場合は自動ログインを実行
+          if (!loggedIn) {
+            liff.login({
+              redirectUri: window.location.href,
+            });
+            return;
+          }
 
           if (loggedIn) {
             try {
