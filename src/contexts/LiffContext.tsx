@@ -1,146 +1,160 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import liff from '@line/liff';
-import liffMock, { setupLiffMock } from '../liff-mock';
+import liff, { type Liff } from '@line/liff';
+import { LiffMockPlugin } from '@line/liff-mock';
+import { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 
-interface Profile {
+// Profile型定義
+type Profile = {
   userId: string;
   displayName: string;
   pictureUrl?: string;
   statusMessage?: string;
-}
+};
 
-interface LiffContextValue {
-  liffObject: any;
-  liffError: string;
+type LiffContextType = {
+  liff: Liff | null;
+  error: string | null;
+  isReady: boolean;
+  login: (redirectUri?: string) => void;
   profile: Profile | null;
   isLoggedIn: boolean;
-  isInClient: boolean;
-  isMockMode: boolean;
-  isReady: boolean;
-  login: () => void;
-  logout: () => void;
-  sendMessage: () => void;
-  closeWindow: () => void;
-}
+  setMockProfile: (profile: Partial<Profile>) => void;
+};
 
-const LiffContext = createContext<LiffContextValue | undefined>(undefined);
+const LiffContext = createContext<LiffContextType>({
+  liff: null,
+  error: null,
+  isReady: false,
+  login: () => {},
+  profile: null,
+  isLoggedIn: false,
+  setMockProfile: () => {},
+});
 
-interface LiffProviderProps {
-  children: ReactNode;
-}
+export const useLiff = () => useContext(LiffContext);
 
-export function LiffProvider({ children }: LiffProviderProps) {
-  const [liffObject, setLiffObject] = useState<any>(null);
-  const [liffError, setLiffError] = useState<string>('');
+export function LiffProvider({ children }: { children: ReactNode }) {
+  const [liffObject, setLiffObject] = useState<Liff | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isReady, setIsReady] = useState<boolean>(false);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [isInClient, setIsInClient] = useState(false);
-  const [isMockMode, setIsMockMode] = useState(false);
-  const [isReady, setIsReady] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+
+  const setMockProfile = (mockProfile: Partial<Profile>) => {
+    if (liffObject && import.meta.env.DEV && import.meta.env.VITE_USE_LIFF_MOCK === 'true') {
+      // 画像が指定されていない場合はデフォルト画像を設定
+      const profileWithDefaultImage = {
+        ...profile,
+        ...mockProfile,
+        pictureUrl: mockProfile.pictureUrl || profile?.pictureUrl || '/user-icon.svg'
+      };
+      
+      // @ts-ignore
+      liffObject.$mock.set((prev) => ({
+        ...prev,
+        getProfile: profileWithDefaultImage,
+      }));
+      setProfile(profileWithDefaultImage as Profile);
+    }
+  };
+
+  // ログイン関数
+  const login = (redirectUri?: string) => {
+    if (!liffObject) return;
+
+    try {
+      liffObject.login({ redirectUri: redirectUri || window.location.href });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '不明なログインエラーが発生しました');
+    }
+  };
 
   useEffect(() => {
-    const initializeLiff = async () => {
+    const initLiff = async () => {
+      console.log("初期化")
       try {
-        const liffId = import.meta.env.VITE_LIFF_ID || 'YOUR_LIFF_ID_HERE';
+        const liffId = import.meta.env.VITE_LIFF_ID;
+        const useMock = import.meta.env.VITE_USE_LIFF_MOCK === 'true';
         
-        // 開発環境またはLIFF IDが設定されていない場合はモックモードを使用
-        const shouldUseMock = import.meta.env.DEV || liffId === 'YOUR_LIFF_ID_HERE';
-        
-        if (shouldUseMock) {
-          console.log('🎭 Using LIFF Mock mode');
-          setIsMockMode(true);
-          setupLiffMock();
-          await liffMock.init({ liffId });
-          setLiffObject(liffMock);
-          
-          if (liffMock.isInClient()) {
-            setIsInClient(true);
-          }
-
-          if (liffMock.isLoggedIn()) {
-            setIsLoggedIn(true);
-            const userProfile = await liffMock.getProfile();
-            setProfile(userProfile);
-          }
-        } else {
-          console.log('🚀 Using real LIFF SDK');
-          await liff.init({ liffId });
-          setLiffObject(liff);
-          
-          if (liff.isInClient()) {
-            setIsInClient(true);
-          }
-
-          if (liff.isLoggedIn()) {
-            setIsLoggedIn(true);
-            const userProfile = await liff.getProfile();
-            setProfile(userProfile);
-          }
+        if (!liffId) {
+          throw new Error('LIFF IDが設定されていません');
         }
-        
-        setIsReady(true);
-      } catch (error) {
-        console.error('LIFF initialization failed', error);
-        setLiffError(error instanceof Error ? error.message : 'LIFF initialization failed');
+
+        if (useMock && import.meta.env.DEV) {
+          liff.use(new LiffMockPlugin());
+        }
+
+        await liff.init({
+          liffId,
+          // @ts-ignore
+          mock: useMock && import.meta.env.DEV,
+        });
+
+        console.log('LIFF初期化完了:', liff);
+        setLiffObject(liff);
+
+        if (import.meta.env.DEV && useMock) {
+          const redirectUri = window.location.href;
+
+          if (!liff.isLoggedIn())
+            liff.login({
+              redirectUri,
+            });
+
+          try {
+            const profileData = await liff.getProfile();
+            // デフォルトでユーザーアイコンを設定
+            const profileWithImage = {
+              ...profileData,
+              pictureUrl: profileData.pictureUrl || '/user-icon.svg'
+            };
+            setProfile(profileWithImage);
+            setIsLoggedIn(true);
+            setIsReady(true);
+          } catch (profileErr) {
+            setError(`Mock プロフィール取得エラー: ${profileErr}`);
+            setIsReady(true);
+          }
+          return;
+        }
+
+        liff.ready.then(async () => {
+          setIsReady(true);
+
+          const loggedIn = liff.isLoggedIn();
+          setIsLoggedIn(loggedIn);
+
+          if (loggedIn) {
+            try {
+              const profileData = await liff.getProfile();
+              setProfile(profileData);
+            } catch (profileErr) {
+              // エラーは無視
+            }
+          }
+        }).catch((readyErr) => {
+          setError(`liff.ready エラー: ${readyErr}`);
+          setIsReady(true);
+        });
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '不明なエラーが発生しました');
+        setLiffObject(null);
         setIsReady(true);
       }
     };
 
-    initializeLiff();
+    initLiff();
   }, []);
 
-  const login = () => {
-    if (liffObject) {
-      liffObject.login();
-    }
-  };
-
-  const logout = () => {
-    if (liffObject) {
-      liffObject.logout();
-      setIsLoggedIn(false);
-      setProfile(null);
-    }
-  };
-
-  const sendMessage = () => {
-    if (liffObject && liffObject.isInClient()) {
-      liffObject.sendMessages([
-        {
-          type: 'text',
-          text: 'LIFFミニアプリからメッセージを送信しました！'
-        }
-      ]);
-    }
-  };
-
-  const closeWindow = () => {
-    if (liffObject && liffObject.isInClient()) {
-      liffObject.closeWindow();
-    }
-  };
-
-  const value: LiffContextValue = {
-    liffObject,
-    liffError,
-    profile,
-    isLoggedIn,
-    isInClient,
-    isMockMode,
+  // コンテキスト値
+  const contextValue: LiffContextType = {
+    liff: liffObject,
+    error,
     isReady,
     login,
-    logout,
-    sendMessage,
-    closeWindow,
+    profile,
+    isLoggedIn,
+    setMockProfile,
   };
 
-  return <LiffContext.Provider value={value}>{children}</LiffContext.Provider>;
-}
-
-export function useLiff() {
-  const context = useContext(LiffContext);
-  if (context === undefined) {
-    throw new Error('useLiff must be used within a LiffProvider');
-  }
-  return context;
+  return <LiffContext.Provider value={contextValue}>{children}</LiffContext.Provider>;
 }
