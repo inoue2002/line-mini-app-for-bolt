@@ -44,36 +44,22 @@ npm run build
 
 ## モック機能
 
-開発環境では自動的にモックモードが有効になり、実際のLIFFアプリを作成せずに開発・テストが可能です。
+開発環境では`@line/liff-mock`を使用してLIFF APIをシミュレートし、実際のLIFFアプリを作成せずに開発・テストが可能です。
 
 ### モックモードの特徴
 
-- 🎭 LIFF API の完全なシミュレート
-- 🔧 開発者コンソールから動的に設定を変更可能
+- 🎭 公式LIFF Mock Pluginによる完全なシミュレート
 - 🚀 実際のLIFF IDなしで開発開始可能
 - 🔄 本番環境では自動的に実際のLIFF SDKに切り替え
+- ⚙️ 環境変数`VITE_USE_LIFF_MOCK=true`で制御
 
-### 開発者コマンド
+### モック設定
 
-ブラウザの開発者コンソールで以下のコマンドが使用できます：
-
-```javascript
-// LINE内ブラウザモードに切り替え
-window.liffMock.setMockClientMode(true);
-
-// プロフィール情報を変更
-window.liffMock.setMockProfile({
-  displayName: "新しい表示名",
-  statusMessage: "新しいステータス"
-});
-
-// ログアウト状態に変更
-window.liffMock.setMockLoginState(false);
+`.env`ファイルでモック機能を制御：
+```
+VITE_USE_LIFF_MOCK=true  # 開発環境でモック使用
 ```
 
-### URLパラメータ
-
-- `?mock_client=true` - LINE内ブラウザモードをシミュレート
 
 ## LIFF アプリの作成方法
 
