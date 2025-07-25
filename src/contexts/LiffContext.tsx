@@ -40,7 +40,7 @@ export function LiffProvider({ children }: { children: ReactNode }) {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
 
   const setMockProfile = (mockProfile: Partial<Profile>) => {
-    if (liffObject && import.meta.env.DEV && import.meta.env.VITE_USE_LIFF_MOCK === 'true') {
+    if (liffObject && import.meta.env.DEV) {
       // 画像が指定されていない場合はデフォルト画像を設定
       const profileWithDefaultImage = {
         ...profile,
@@ -73,7 +73,8 @@ export function LiffProvider({ children }: { children: ReactNode }) {
       console.log("初期化")
       try {
         const liffId = import.meta.env.VITE_LIFF_ID;
-        const useMock = import.meta.env.VITE_USE_LIFF_MOCK === 'true';
+        // 開発モード（npm run dev）の時は自動的にモックを使用
+        const useMock = import.meta.env.DEV;
         
         if (!liffId) {
           throw new Error('LIFF IDが設定されていません');
@@ -93,7 +94,7 @@ export function LiffProvider({ children }: { children: ReactNode }) {
         setLiffObject(liff);
 
         // 開発環境でモック使用時の処理
-        if (import.meta.env.DEV && useMock) {
+        if (useMock) {
           const redirectUri = window.location.href;
 
           if (!liff.isLoggedIn())

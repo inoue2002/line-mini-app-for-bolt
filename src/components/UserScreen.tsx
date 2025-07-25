@@ -68,7 +68,7 @@ export function UserScreen() {
           </div>
           <div>
             <span className="font-medium text-gray-500">モック使用:</span>
-            <span className="ml-2">{import.meta.env.VITE_USE_LIFF_MOCK === 'true' ? 'はい' : 'いいえ'}</span>
+            <span className="ml-2">{import.meta.env.DEV ? 'はい' : 'いいえ'}</span>
           </div>
           {liff && (
             <div>
